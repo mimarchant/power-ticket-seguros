@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "atlassian": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@0.15.2",
+        "https://mcp.atlassian.com/v1/mcp/authv2"
+      ],
+      "env": {
+        "npm_config_registry": "https://registry.npmjs.org/"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "getJiraIssue",
+        "searchJiraIssuesUsingJql",
+        "lookupJiraAccountId"
+      ]
+    }
+  }
+}
