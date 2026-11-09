@@ -16,6 +16,27 @@
         "searchJiraIssuesUsingJql",
         "lookupJiraAccountId"
       ]
+    },
+    "bitbucket": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "bitbucket-mcp@latest"
+      ],
+      "env": {
+        "npm_config_registry": "https://registry.npmjs.org/",
+        "BITBUCKET_URL": "https://api.bitbucket.org/2.0",
+        "BITBUCKET_WORKSPACE": "cnsvbucket",
+        "BITBUCKET_USERNAME": "TU_CORREO@consorcio.cl",
+        "BITBUCKET_PASSWORD": "TU_API_TOKEN_CON_SCOPES"
+      },
+      "disabled": false,
+      "disabledTools": [
+        "mergePullRequest",
+        "approvePullRequest",
+        "unapprovePullRequest",
+        "declinePullRequest"
+      ]
     }
   }
 }

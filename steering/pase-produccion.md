@@ -19,6 +19,7 @@ El flujo tiene dos fases separadas por la revisión de QA.
 | # | Paso | Quién | Herramienta / transición |
 |---|---|---|---|
 | 1 | Iniciar Desarrollador | Agente | `51` |
+| 2a | Rama release y PRs en Bitbucket | Usuario crea la rama; PRs los hace el agente o el usuario (se pregunta) | Bitbucket MCP |
 | 2 | Crear Pauta (si no existe) | Agente | `1491` |
 | 3 | Subir PDF de QA y EML de aprobación | **Usuario (manual)** | el agente verifica |
 | 4 | Ejecutar QAF-Automation-Manual | **Usuario (manual)** | el agente lee el resultado |
@@ -43,7 +44,9 @@ Después del paso 9, el trabajo del equipo termina: queda esperar al explotador.
 
 0. **Antes de cualquier transición, hacer el "Diagnóstico de requisitos"** y mostrar qué está listo y qué falta. Si el usuario solo pregunta qué le falta, responder con el diagnóstico y no ejecutar nada.
 1. **Siempre preguntar el ticket.** Ofrecer los tickets del usuario como opciones, pero no elegir por él. El sitio (NSPUM o NSPRM) se deduce de la key y se confirma.
-2. **Siempre pedir los PR** que se instalan (uno o más). No sacarlos del repo abierto en el workspace.
+2. **Siempre preguntar los repositorios** que se instalan (uno o más). No asumir el repo abierto en el workspace.
+2b. **NUNCA hacer merge de un PR. Tampoco aprobarlo ni declinarlo.** El merge de `feature → release` lo hace el usuario y el de `release → master` el explotador. Esta regla no tiene excepciones, aunque el usuario lo pida: en ese caso, indicarle que lo haga él desde Bitbucket.
+2c. **Vista previa general antes de empezar:** antes de crear cualquier PR o la pauta, mostrar cómo quedará todo (rama release, PRs, revisores y textos de la pauta) y esperar el "sí".
 3. **Las transiciones van una por una**, nunca en paralelo ni en el mismo bloque de llamadas. Antes de cada una, esperar la respuesta de la anterior y verificar con `getJiraIssue` (field `status`) que el ticket quedó en el estado esperado. Si no, detenerse e informar.
 4. **Confirmar cada transición por separado** con un "sí" explícito del usuario.
 5. **No ejecutar "Terminar" (paso 5)** sin pauta vinculada, adjuntos verificados y último checklist QAF exitoso.
@@ -63,7 +66,7 @@ Para el pase a producción necesito:
 2. PR(s) a instalar (links de Bitbucket):
 ```
 
-Los PR solo se necesitan si hay que crear la pauta (paso 2). Si la pauta ya existe, no pedirlos.
+Los repos y PR solo se necesitan si hay que crear la pauta (pasos 2a y 2). Si la pauta ya existe, no pedirlos.
 
 ### Leer el ticket
 
@@ -189,6 +192,142 @@ transitionJiraIssue
 ```
 
 Confirmado en NSPUM-659.
+
+---
+
+## Paso 2a: Rama release y PRs en Bitbucket
+
+Forma de trabajo del workspace `cnsvbucket` (widgets y microservicios por igual):
+
+```
+master ──► feature/<KEY>  (desarrollo)
+feature/<KEY> ──► develop y release/stable  (Sonar y certificación)
+master ──► release/AAAAMMDD_<KEY>  (rama nueva para el pase)
+PR 1: feature/<KEY> ──► release/AAAAMMDD_<KEY>   revisor: el que indique el usuario (propuesta: Pablo Bustos)
+PR 2: release/AAAAMMDD_<KEY> ──► master          revisores: los por defecto del repo
+```
+
+El link que va a la pauta es el del **PR 2** (release → master). Ejemplo real: NSPUM-659, PR #25 (feature → release) y PR #26 (release → master) en `widget_landing-concurso-110`.
+
+Workspace Bitbucket: `cnsvbucket`.
+
+### Nomenclatura de la rama release
+
+`release/AAAAMMDD_<KEY>`, donde **AAAAMMDD es la fecha de instalación** (no la de creación de la rama).
+
+- Ejemplos: `release/20261105_NSPUM-659`, `release/20261021_NSPRM-1104`.
+- Siempre preguntar la fecha de instalación y calcular el nombre. Mostrarlo al usuario.
+
+### Datos (un solo mensaje)
+
+```
+Para preparar las ramas y PRs necesito:
+1. Repositorio(s) de cnsvbucket que se instalan:
+2. Rama de trabajo de cada repo (propuesta: feature/<KEY>):
+3. Fecha de instalación (AAAA-MM-DD):
+4. ¿Los PRs los creo yo o los creas tú?
+5. Revisor del PR feature → release (propuesta: Pablo Bustos):
+```
+
+La pregunta 4 se hace **siempre**. Si el usuario los crea, el agente solo le da los datos (ramas, título, revisores) y luego verifica en Bitbucket que existan.
+
+### a. Rama release (la crea el usuario)
+
+El MCP de Bitbucket no puede crear ramas. El agente da el nombre exacto y las instrucciones:
+
+```
+Crea en Bitbucket, en <repo>:
+  Create branch → Tipo: Release → Desde: master
+  Nombre: 20261105_NSPUM-659   (queda como release/20261105_NSPUM-659)
+Avísame cuando esté.
+```
+
+La rama **siempre sale de `master`**. Después, verificar con el MCP de Bitbucket que la rama exista (por ejemplo, intentando leer PRs abiertos con ese destino o los datos del repo). Si no existe, no seguir.
+
+### b. PR 1: feature → release
+
+Antes de crear:
+- Buscar PRs abiertos del repo (`getPullRequests`, state `OPEN`). Si ya hay uno entre las mismas ramas, usarlo y no crear otro.
+
+```
+createPullRequest
+  workspace: "cnsvbucket"
+  repo_slug: "<repo>"
+  title: "Feature/<KEY>"
+  description: "<lista de commits: * <KEY>: <mensaje>>"
+  sourceBranch: "feature/<KEY>"
+  targetBranch: "release/AAAAMMDD_<KEY>"
+  reviewers: ["<UUID del revisor indicado>"]
+```
+
+Revisor propuesto: Pablo Bustos, UUID Bitbucket `{bcf58e56-3bf1-4345-81cc-6356dbbfd352}`. **Siempre preguntar** a quién dejar; si es otra persona, pedir su nombre y buscar su UUID en PRs anteriores del repo donde haya participado. Si no se encuentra, pedir al usuario que lo agregue a mano.
+
+Tomar el link del PR **de la respuesta** de `createPullRequest`. No adivinar el número.
+
+### c. Espera: aprobación y merge del PR 1 (usuario)
+
+```
+El PR 1 está creado: <link>. Cuando <revisor> lo apruebe, haz tú el merge en Bitbucket y avísame.
+```
+
+**El agente nunca hace el merge.** Verificar con `getPullRequest` que el PR 1 esté en estado `MERGED` antes de crear el PR 2. Si no está mergeado, no seguir (el PR 2 debe incluir esos commits).
+
+### d. PR 2: release → master
+
+1. Consultar los revisores por defecto: `getEffectiveDefaultReviewers` (workspace `cnsvbucket`, repo). **La API no los agrega sola**: hay que enviarlos.
+2. Buscar si ya hay un PR abierto `release/... → master`. Si existe, usarlo.
+
+```
+createPullRequest
+  workspace: "cnsvbucket"
+  repo_slug: "<repo>"
+  title: "Release/AAAAMMDD <KEY>"
+  description: "<lista de commits: * <KEY>: <mensaje>>"
+  sourceBranch: "release/AAAAMMDD_<KEY>"
+  targetBranch: "master"
+  reviewers: ["<UUIDs de los revisores por defecto>"]
+```
+
+Tomar el link de la respuesta. Este es el link que va a la pauta.
+
+### e. Validar commits
+
+Leer los commits del PR 2 (`getPullRequestCommits`). Si algún commit no tiene la key del ticket en el mensaje, avisar al usuario antes de crear la pauta: el QAF lo marca como error ("Todos los commits tienen el ticket esperado").
+
+### Si los PRs los crea el usuario
+
+Darle los mismos datos (ramas, títulos, revisores) y, cuando avise, buscar los PRs con `getPullRequests` y verificar ramas, revisores y estado. Tomar el link del PR 2 para la pauta.
+
+### Varios repos
+
+Repetir a–e por cada repo. La pauta lleva el PR 2 de cada uno, agrupados por pestaña (Modyo / AWS).
+
+---
+
+## Vista previa general (antes de empezar el paso 2a)
+
+Mostrar todo junto y esperar el "sí":
+
+```
+Pase a producción NSPUM-659 · instalación 2026-11-05
+
+Repo: widget_landing-concurso-110
+  Rama release (la creas tú desde master): release/20261105_NSPUM-659
+  PR 1: feature/NSPUM-659 → release/20261105_NSPUM-659 · revisor: Pablo Bustos · lo crea: yo
+  (merge del PR 1: tú, después de la aprobación)
+  PR 2: release/20261105_NSPUM-659 → master · revisores por defecto (10) · lo crea: yo
+
+Pauta (Modyo):
+  Instrucciones: 1. Ejecutar merge a pull request <link PR 2> ... (texto completo)
+  Resultado esperado: Pipeline ejecutado correctamente y widget desplegado en sitio publico
+  Plan de vuelta atrás: (texto completo)
+  Path/PR: <link PR 2>
+
+Yo nunca hago merge de ningún PR.
+¿Está bien así?
+```
+
+Los links de los PR aparecen como "se completa al crear el PR". Después de crear cada PR, confirmar igual cada acción por separado.
 
 ---
 
@@ -449,4 +588,7 @@ Para "Crear Pauta", incluir los textos completos de cada campo.
 | Error en textareas de la pauta | Formato ADF rechazado | Reintentar como string plano |
 | QAF con ❌ | Dato del ticket incorrecto | Mostrar la fila; el usuario corrige y vuelve a ejecutar la regla |
 | Asignar al Explotador falla por "Pauta Produccion" | Campo vacío o key en minúsculas | Enviar la key del vínculo en mayúsculas |
+| `createPullRequest` falla con 403 | El token de Bitbucket no tiene `write:pullrequest:bitbucket` | Generar un token con scopes `read:repository`, `read:pullrequest` y `write:pullrequest` de Bitbucket |
+| PR creado sin revisores | No se enviaron los revisores por defecto | Agregarlos (el usuario desde Bitbucket); la próxima vez enviarlos desde `getEffectiveDefaultReviewers` |
+| La rama release no existe | El usuario aún no la crea | Darle el nombre y las instrucciones de nuevo |
 | Terminar ejecutado y la siguiente transición falló | Error en el paso siguiente | El ticket queda en TERMINADO; reintentar solo el paso que falló |

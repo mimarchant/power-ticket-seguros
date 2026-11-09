@@ -33,6 +33,7 @@ Alcance actual de creación de tickets: solo el tipo **"Mejora o Nueva Funcional
 - Requiere el MCP remoto de Atlassian (incluido en `mcp.json`). La primera vez abre el navegador para autenticar con OAuth en `cnsv.atlassian.net`.
 - Si ya tienes un servidor `atlassian` configurado en `~/.kiro/settings/mcp.json`, puedes deshabilitar el de este power para no tener herramientas duplicadas.
 - `cloudId` para todas las llamadas: `cnsv.atlassian.net`.
+- Para el pase a producción se usa también el MCP de Bitbucket (`bitbucket-mcp`, incluido en `mcp.json`). Cada persona debe poner su correo en `BITBUCKET_USERNAME` y un API token propio en `BITBUCKET_PASSWORD`. El token se genera en https://id.atlassian.com/manage-profile/security/api-tokens con "Create API token with scopes", app Bitbucket, scopes `read:repository:bitbucket`, `read:pullrequest:bitbucket` y `write:pullrequest:bitbucket`. **Nunca subir el token a un repositorio ni compartir el `mcp.json` con el token puesto.**
 
 ## Reglas obligatorias para el agente
 
@@ -44,6 +45,7 @@ Alcance actual de creación de tickets: solo el tipo **"Mejora o Nueva Funcional
 6. Preguntar el resto de los datos variables **en un solo mensaje**, no campo por campo.
 7. No modificar la HDU de origen (solo leerla y vincularla).
 8. **Las escrituras en Jira se ejecutan una por una, nunca en paralelo ni en el mismo bloque de llamadas.** Crear, asignar y vincular son pasos dependientes: cada uno espera la respuesta del anterior. **Prohibido adivinar o calcular la key** del ticket nuevo (por ejemplo, "el último fue NSPUM-659, el nuevo será NSPUM-660"). La key se toma **solo** de la respuesta de `createJiraIssue`. Ver "Paso 5b: Validar la key".
+9. **Nunca hacer merge, aprobar ni declinar un pull request en Bitbucket**, en ningún flujo y aunque el usuario lo pida. Esas acciones las hace siempre una persona desde Bitbucket.
 
 ---
 
@@ -354,6 +356,9 @@ Leer `steering/solicitudes-dac.md` (`readSteering` con `steeringFile: "solicitud
 Leer `steering/pase-produccion.md` (`readSteering` con `steeringFile: "pase-produccion.md"`) y seguirlo al pie de la letra. Resumen de sus reglas:
 
 - Preguntar siempre el ticket. Detectar la fase por el estado, el vínculo "Pauta Producción" y el comentario de aprobación de QA.
+- Ramas y PRs en Bitbucket (`cnsvbucket`): el usuario crea la rama `release/AAAAMMDD_<KEY>` desde `master` (AAAAMMDD = fecha de instalación); el agente le da el nombre. Siempre preguntar si los PRs los crea el agente o el usuario. PR 1 `feature/<KEY>` → release con el revisor que indique el usuario (propuesta: Pablo Bustos); PR 2 release → `master` con los revisores por defecto. El link del PR 2 va a la pauta.
+- **NUNCA hacer merge, aprobar ni declinar un PR**, aunque el usuario lo pida.
+- Mostrar una vista previa general (ramas, PRs, revisores y pauta) antes de empezar.
 - Empezar siempre con el **diagnóstico de requisitos** (solo lectura): qué está listo (pauta, PDF, EML, QAF, aprobación de QA) y qué falta para el siguiente paso. Si el usuario pregunta "¿qué me falta?", responder solo con eso.
 - Subir adjuntos y ejecutar QAF-Automation-Manual son pasos manuales del usuario; el agente solo los verifica.
 - No terminar sin pauta, adjuntos y QAF exitoso. No asignar al explotador sin aprobación de QA.
